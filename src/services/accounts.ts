@@ -1,4 +1,6 @@
 import logger from "../utils/logger";
+const { getDatabase } = require("firebase-admin/database");
+
 
 const FLW_URL = process.env.FLW_URL || "";
 const FLW_SECRET = process.env.FLW_SECRET || "";

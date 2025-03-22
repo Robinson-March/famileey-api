@@ -102,3 +102,11 @@ export interface GetUserMiddleware {
   email_verified: boolean;
   preferred_username: string | null;
 }
+
+export interface DummyAccount {
+  id: string;
+  balance: number;
+  account_number: string;
+  currency: string;
+  country: string;
+}

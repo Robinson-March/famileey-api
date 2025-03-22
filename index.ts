@@ -14,10 +14,11 @@ const {
   GrantType,
 } = require("@kinde-oss/kinde-node-express");
 import morgan from "morgan";
-import logger from "./src/utils/logger";
+
 import admin from "firebase-admin";
-import accountRouter from "./src/routes/accountRouter";
 import errorHandler from "./src/middlewares/errorHandler";
+import accountRouter from "./src/routes/accountRouter";
+import logger from "./src/utils/logger";
 
 const app = express();
 const PORT = process.env.PORT || 4010;
