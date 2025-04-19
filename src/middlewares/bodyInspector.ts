@@ -1,4 +1,4 @@
-import type { Request, Response, NextFunction } from "express";
+import type { Request, Response, NextFunction, RequestHandler } from "express";
 import logger from "../utils/logger";
 
 /**
@@ -6,11 +6,11 @@ import logger from "../utils/logger";
  * query parameters (for GET), and route parameters (for all request types).
  * @param requiredFields - An array of required field names
  */
-const bodyInspector = (requiredFields: string[]) => {
-  return (req: Request, res: Response, next: NextFunction) => {
+const bodyInspector = (requiredFields: string[]): RequestHandler => {
+  return (req: Request, res: Response, next: NextFunction): void => {
     const data = {
-      ...req.params, // Always include route parameters
-      ...(req.method === "GET" ? req.query : req.body), // Query for GET, body for others
+      ...req.params,
+      ...(req.method === "GET" ? req.query : req.body),
     };
 
     const missingFields = requiredFields.filter((field) => !(field in data));
@@ -20,7 +20,8 @@ const bodyInspector = (requiredFields: string[]) => {
         ", "
       )}`;
       logger.error(errorMessage);
-      return res.status(400).json({ success: false, message: errorMessage });
+      res.status(400).json({ success: false, message: errorMessage });
+      return; // 👈 This fixes the return type issue
     }
 
     logger.info(`Validated request data: ${JSON.stringify(data)}`);

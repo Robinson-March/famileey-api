@@ -1,66 +1,133 @@
-# 🚀 All-in-One Financial App (Backend)
+# Fameely Backend API Documentation
 
-## Overview
-
-This project is a **comprehensive financial platform** that integrates:
-
-- **Cryptocurrency Trading** – Buy, sell, and transfer cryptocurrencies using secure APIs.
-- **Virtual Cards** – Issue and manage virtual debit cards for secure online transactions.
-- **Flight Booking** – Search and book flights seamlessly with real-time pricing.
-
-Built as a **mobile application**, this platform ensures a **user-friendly and secure** financial experience for individuals and businesses.
-
-## 🌟 Features
-
-### 🔹 Cryptocurrency Trading
-
-- Multi-crypto support (e.g., BTC, ETH, USDT, BNB)
-- **Buy/Sell/Send** functionality
-- Real-time price updates via APIs (e.g., Binance, CoinGecko)
-- Transaction history & order tracking
-- Secure wallet management
-
-### 🔹 Virtual Cards
-
-- Instantly generate virtual debit cards
-- Load funds & make online payments
-- Card transaction tracking
-- Secure authentication & fraud protection
-
-### 🔹 Flight Booking
-
-- Search flights from multiple airlines
-- Compare real-time ticket prices
-- Book flights & receive e-tickets
-- Manage bookings and cancellations
-
-## 🛠️ Setup & Installation
-
-### **1️⃣ Backend Setup**
-
-```sh
-git clone https://github.com/Robinson-March/finsync-backend.git
-cd backend
-bun install
-bun start
-```
-
-## 🎯 Roadmap
-
-✅ User authentication & onboarding  
-✅ Crypto trading integration  
-✅ Virtual card issuance  
-🚧 Flight booking engine (In Progress)  
-🚧 AI-based financial insights (Future)
-
-## 💡 Contributing
-
-Want to contribute? Feel free to open an issue or submit a pull request.
-
-## 📄 License
-
-MIT License. See `LICENSE` for details.
+Backend support structure for **Fameely** — a social platform for family connection, story sharing, and media engagement.
 
 ---
 
-💬 **Have questions?** Join the discussion on [Discord](#) or [Telegram](#).
+## Table of Contents
+- [Authentication](#authentication)
+- [User & Profile Management](#user--profile-management)
+- [Story Management](#story-management)
+- [Event Media](#event-media)
+- [Engagement Features](#engagement-features)
+- [Contribution Guidelines](#contribution-guidelines)
+
+---
+
+## Authentication
+
+### `POST /api/auth/signup`
+Registers a new user.
+**Request Body:**
+```json
+{
+  "familyName": "Doe",
+  "nativeOf": "Ibadan",
+  "district": "LGA name",
+  "state": "Oyo",
+  "country": "Nigeria",
+  "residence": "Lagos",
+  "email": "family@example.com",
+  "phone": "+23480000000",
+  "occupation": "Engineer",
+  "worksAt": "Tech Ltd"
+}
+```
+
+### `POST /api/auth/login`
+Logs in a user and returns an auth token.
+
+---
+
+## User & Profile Management
+
+### `POST /api/user/profile-picture`
+Uploads a profile picture.
+**Auth Required**
+
+### `POST /api/family/profile`
+Uploads a family profile (structured or document).
+**Auth Required**
+
+---
+
+## Story Management
+
+### `POST /api/family/story`
+Submit a written story.
+**Auth Required**
+
+### `GET /api/family/stories`
+List all families with uploaded stories.
+**Public**
+
+### `GET /api/family/story/:id`
+Fetch a family story by ID.
+**Public**
+
+---
+
+## Event Media
+
+### `POST /api/family/event-media`
+Uploads photos or videos of family events.
+**Auth Required**
+
+### `GET /api/family/videos`
+Returns a list of available videos.
+**Public**
+
+### `GET /api/family/photos`
+Returns a list of available photos.
+**Public**
+
+---
+
+## Engagement Features
+
+### `POST /api/engagement/like`
+**Request Body:**
+```json
+{
+  "contentId": "abc123",
+  "type": "story|photo|video"
+}
+```
+**Auth Required**
+
+### `POST /api/engagement/comment`
+**Request Body:**
+```json
+{
+  "contentId": "abc123",
+  "comment": "Inspiring story!"
+}
+```
+**Auth Required**
+
+### `POST /api/engagement/follow`
+Follows another family by their ID.
+
+### `POST /api/engagement/share`
+Logs a content share event.
+**Request Body:**
+```json
+{
+  "contentId": "abc123",
+  "platform": "whatsapp|facebook|email"
+}
+```
+
+---
+
+## Contribution Guidelines (for GitHub)
+- Follow RESTful standards.
+- Use JWT or similar for authorization.
+- Protect endpoints with appropriate middleware.
+- Raise issues or PRs to discuss new endpoints or refactors.
+- Document every route in this file or OpenAPI format.
+
+---
+
+All backend features should align with the features described in the [Frontend Layout](./fameely_app_outline.md).
+

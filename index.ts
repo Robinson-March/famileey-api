@@ -19,9 +19,12 @@ import admin from "firebase-admin";
 import errorHandler from "./src/middlewares/errorHandler";
 import accountRouter from "./src/routes/accountRouter";
 import logger from "./src/utils/logger";
+import { verifyFirebaseToken } from "./src/middlewares/verifyFirebaseToken";
+import postsRouter from "./src/routes/postsRouter";
+import { familyRouter } from "./src/routes/familyRouter";
 
 const app = express();
-const PORT = process.env.PORT || 4010;
+const PORT = process.env.PORT || 4011;
 const serviceAccount = "./xx.json";
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
@@ -30,7 +33,7 @@ admin.initializeApp({
 const config = {
   clientId: process.env.KINDE_CLIENT_ID,
   issuerBaseUrl: process.env.KINDE_ISSUER_URL,
-  siteUrl: process.env.KINDE_SITE_URL || "http://localhost:4010",
+  siteUrl: process.env.KINDE_SITE_URL || "http://localhost:4011",
   secret: process.env.KINDE_CLIENT_SECRET,
   redirectUrl: `${process.env.KINDE_SITE_URL}/callback`,
   scope: "openid profile email",
@@ -45,7 +48,7 @@ app.use(helmet()); // Security headers
 // app.use(cors({ origin: "*" })); // Enable CORS
 app.use(express.json()); // JSON body parser
 app.use(express.urlencoded({ extended: true })); // Form URL-encoded body parser
-const allowedOrigins = ["http://localhost:4010", process.env.ALLOWED];
+const allowedOrigins = ["http://localhost:4011", process.env.ALLOWED];
 app.use(
   cors({
     origin: (origin, callback) => {
@@ -78,7 +81,9 @@ app.get("/", (req: Request, res: Response) => {
   res.send({ message: "API is running securely!" });
 });
 
-app.use("/accounts", protectRoute, getUser, accountRouter);
+app.use("/accounts", accountRouter);
+app.use("/posts", verifyFirebaseToken, postsRouter);
+app.use("/families", verifyFirebaseToken, familyRouter);
 
 // ❌ 404 Not Found Middleware (Handles Unmatched Routes)
 app.use((req: Request, res: Response, next: NextFunction) => {

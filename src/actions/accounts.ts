@@ -5,37 +5,50 @@ import {
   type FirebaseDatabaseError,
   type Reference,
 } from "firebase-admin/database";
-import type { DummyAccount, GetUserMiddleware } from "../utils/interfaces";
+import type {
+  DummyAccount,
+  FamilleyData,
+  FamilleyRegistrationData,
+  GetUserMiddleware,
+} from "../utils/interfaces";
 import logger from "../utils/logger";
 import type { FirebaseError } from "firebase-admin";
+import { getAuth } from "firebase-admin/auth";
 
-const checkIfUserExist = async (id: string) => {
+const checkIfUserExist = async (data: FamilleyData): Promise<boolean> => {
   try {
-    const db: Database = getDatabase();
-    const ref = db.ref(`users/${id}`);
-    const snapshot = await ref.once("value"); // Use await here
-    return snapshot.exists(); // Return true or false based on existence
-  } catch (e) {
-    logger.error(`checkIfUserExist Action`, e);
-    return false; // Or handle the error as appropriate
-  }
-};
-const checkIfAccountExist = async (
-  id: string,
-  account_number: string
-): Promise<boolean> => {
-  try {
-    const db: Database = getDatabase();
-    const ref: Reference = db.ref(`dummy_account/${id}`);
-    const snapshot: DataSnapshot = await ref.once("value");
+    const auth = getAuth();
 
-    if (!snapshot.exists()) return false;
+    // 1. Check by email
+    if (data.email) {
+      try {
+        await auth.getUserByEmail(data.email);
+        logger.info(`User with email ${data.email} already exists`);
+        return true;
+      } catch (error: any) {
+        if (error.code !== "auth/user-not-found") {
+          throw error;
+        }
+      }
+    }
 
-    return Object.values(snapshot.val()).some(
-      (data: any) => data.account_number === account_number
-    );
+    // 2. Check by phone
+    if (data.phone) {
+      try {
+        await auth.getUserByPhoneNumber(data.phone);
+        logger.info(`User with phone ${data.phone} already exists`);
+        return true;
+      } catch (error: any) {
+        if (error.code !== "auth/user-not-found") {
+          throw error;
+        }
+      }
+    }
+
+    // ✅ If no matches found
+    return false;
   } catch (e) {
-    logger.error(`checkIfAccountExist Action`, e);
+    logger.error(`checkIfUserExist Error`, e);
     return false;
   }
 };
@@ -54,50 +67,39 @@ const getUserData = async (id: string) => {
     throw new Error(e); // Or handle the error as appropriate
   }
 };
-const saveUserAccount = async (id: string, data: DummyAccount) => {
+
+const registerUser = async (
+  user: FamilleyRegistrationData
+): Promise<string | null> => {
   try {
-    const accountExists = await checkIfAccountExist(id, data.account_number);
-    if (accountExists) {
-      return {
-        success: false,
-        status: 422,
-        message: "Account already exists",
-        error: "duplicates",
-      };
+    if (await checkIfUserExist(user)) {
+      logger.info("User already exists, skipping registration.");
+      return null;
+    } else {
+      const auth = getAuth();
+      const createdUser = await auth.createUser({
+        email: user.email,
+        phoneNumber: user.phone,
+        displayName: `${user.familyName}`,
+
+        emailVerified: false,
+        disabled: false,
+      });
+
+      await updateUser(createdUser.uid, user);
+      const token = await auth.createCustomToken(createdUser.uid);
+
+      logger.info(`User ${createdUser.uid} created successfully.`);
+      return token;
     }
-
-    const db: Database = getDatabase();
-    const ref = db.ref(`dummy_account/${id}/${data.account_number}`);
-    await ref.set(data);
-
-    return {
-      success: true,
-      status: 201,
-      message: "Account created",
-      data,
-    };
-  } catch (e: any) {
-    logger.error(`saveUserAccount Action`, e);
-    throw new Error(e);
-  }
-};
-
-const registerUser = async (user: GetUserMiddleware) => {
-  try {
-    if (await checkIfUserExist(user.id)) {
-      return;
-    }
-    const db: Database = getDatabase();
-    const ref = db.ref(`users/${user.id}`);
-    await ref.set(user);
-    return;
   } catch (e) {
-    logger.error(`registerUser Action`, e);
+    logger.error("registerUser Error", e);
+    return null;
   }
 };
-const updateUser = async (userId: string, updateData: any) => {
+const updateUser = async (userId: string, updateData: FamilleyData) => {
   try {
-    const result = await checkIfUserExist(userId);
+    const result = await checkIfUserExist(updateData);
     if (!result) {
       return { success: true, message: "User does not exist" };
     }
@@ -110,10 +112,4 @@ const updateUser = async (userId: string, updateData: any) => {
   }
 };
 
-export {
-  checkIfUserExist,
-  registerUser,
-  updateUser,
-  getUserData,
-  saveUserAccount,
-};
+export { checkIfUserExist, registerUser, updateUser, getUserData };
