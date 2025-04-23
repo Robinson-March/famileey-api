@@ -7,12 +7,7 @@ import express, {
 import helmet from "helmet";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
-const {
-  setupKinde,
-  protectRoute,
-  getUser,
-  GrantType,
-} = require("@kinde-oss/kinde-node-express");
+
 import morgan from "morgan";
 
 import admin from "firebase-admin";
@@ -30,19 +25,7 @@ admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
   databaseURL: process.env.DATABASE_URL,
 });
-const config = {
-  clientId: process.env.KINDE_CLIENT_ID,
-  issuerBaseUrl: process.env.KINDE_ISSUER_URL,
-  siteUrl: process.env.KINDE_SITE_URL || "http://localhost:4011",
-  secret: process.env.KINDE_CLIENT_SECRET,
-  redirectUrl: `${process.env.KINDE_SITE_URL}/callback`,
-  scope: "openid profile email",
-  grantType: GrantType.AUTHORIZATION_CODE,
-  unAuthorisedUrl: `${process.env.KINDE_SITE_URL}/unauthorised`,
-  postLogoutRedirectUrl: `${process.env.KINDE_SITE_URL}/logout`,
-};
 
-setupKinde(config, app);
 // Middleware
 app.use(helmet()); // Security headers
 // app.use(cors({ origin: "*" })); // Enable CORS
