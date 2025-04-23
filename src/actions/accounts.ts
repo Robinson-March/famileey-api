@@ -61,7 +61,8 @@ const getUserData = async (id: string) => {
     if (!snapshot.exists()) {
       throw new Error("User does not exist");
     }
-    return snapshot.val();
+    const { password, ...userWithoutPassword } = snapshot.val();
+    return userWithoutPassword;
   } catch (e: any) {
     logger.error(`getUserData Action`, e);
     throw new Error(e); // Or handle the error as appropriate
@@ -81,12 +82,16 @@ const registerUser = async (
         email: user.email,
         phoneNumber: user.phone,
         displayName: `${user.familyName}`,
-
+        password: user.password,
         emailVerified: false,
         disabled: false,
       });
+      // Create a new object that excludes the password property
+      const { password, ...userWithoutPassword } = user;
 
-      await updateUser(createdUser.uid, user);
+      // Use the new object without the password for subsequent operations
+      await updateUser(createdUser.uid, userWithoutPassword);
+
       const token = await auth.createCustomToken(createdUser.uid);
 
       logger.info(`User ${createdUser.uid} created successfully.`);

@@ -82,35 +82,68 @@ accountRouter.post("/custom-token", async (req: Request, res: Response) => {
     return
   }
 });
+accountRouter.get(
+  "/user",
+  verifyFirebaseToken,
+  async (req: Request, res: Response) => {
+    const { uid } = req.user;
+
+    try {
+      const result = await getUserData(uid);
+      res.json({ success: true, result });
+      return;
+    } catch (error) {
+      logger.error("Error creating custom token", error);
+      res.status(500).json({ error: "Failed to create custom token" });
+      return;
+    }
+  }
+);
+
 // 🛠 Update account route
 accountRouter.put(
   "/updateaccount",
-  bodyInspector(["updateData"]),
   verifyFirebaseToken,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const user = req?.user;
-      const { updateData } = req.body;
-
-      if (!updateData || typeof updateData !== "object") {
+      const user = req?.user.uid;
+      const body = req.body;
+      console.log({ body });
+      if (!body || typeof body !== "object") {
         res.status(400).json({
           success: false,
           message: "Invalid update data format",
         });
         return;
       }
+      const guidedInput = [
+        "familyName",
+        "nativeOf",
+        "district",
+        "province",
+        "country",
+        "residence",
+        "occupation",
+        "worksAt",
+        "photoUrl",
+      ];
 
-      const guidedInput = ["phone_number"];
+      const bodyKeys = Object.keys(body);
 
-      if (!Object.keys(updateData).some((key) => guidedInput.includes(key))) {
+      // If any key in the body is not in the allowed list, throw error
+      const invalidKeys = bodyKeys.filter((key) => !guidedInput.includes(key));
+
+      if (invalidKeys.length > 0) {
         res.status(400).json({
           success: false,
-          message: `Only ${guidedInput} are allowed`,
+          message: `Invalid field(s): ${invalidKeys.join(
+            ", "
+          )}. Only these fields are allowed: ${guidedInput.join(", ")}.`,
         });
         return;
       }
 
-      const result = await updateUser(user, updateData);
+      const result = await updateUser(user, body);
 
       if (!result?.success) {
         res.status(400).json({
