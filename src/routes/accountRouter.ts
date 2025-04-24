@@ -108,7 +108,7 @@ accountRouter.put(
     try {
       const user = req?.user.uid;
       const body = req.body;
-      console.log({ body });
+
       if (!body || typeof body !== "object") {
         res.status(400).json({
           success: false,

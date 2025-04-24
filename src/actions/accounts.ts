@@ -104,7 +104,7 @@ const registerUser = async (
 };
 const updateUser = async (userId: string, updateData: FamilleyData) => {
   try {
-    const result = await checkIfUserExist(updateData);
+    const result = await getUserData(userId);
     if (!result) {
       return { success: true, message: "User does not exist" };
     }
