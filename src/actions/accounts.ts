@@ -61,7 +61,7 @@ const getUserData = async (id: string) => {
     if (!snapshot.exists()) {
       throw new Error("User does not exist");
     }
-    const { password, ...userWithoutPassword } = snapshot.val();
+    const { password,confirmPassword, ...userWithoutPassword } = snapshot.val();
     return userWithoutPassword;
   } catch (e: any) {
     logger.error(`getUserData Action`, e);
