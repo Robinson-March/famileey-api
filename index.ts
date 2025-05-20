@@ -60,13 +60,13 @@ app.use(limiter);
 // Kinde Config
 
 // Routes
-app.get("/", (req: Request, res: Response) => {
+app.get("/api", (req: Request, res: Response) => {
   res.send({ message: "API is running securely!" });
 });
 
-app.use("/accounts", accountRouter);
-app.use("/posts", verifyFirebaseToken, postsRouter);
-app.use("/families", verifyFirebaseToken, familyRouter);
+app.use("/api/accounts", accountRouter);
+app.use("/api/posts", verifyFirebaseToken, postsRouter);
+app.use("/api/families", verifyFirebaseToken, familyRouter);
 
 // ❌ 404 Not Found Middleware (Handles Unmatched Routes)
 app.use((req: Request, res: Response, next: NextFunction) => {
