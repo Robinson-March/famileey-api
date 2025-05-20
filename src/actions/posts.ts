@@ -11,7 +11,9 @@ const getPosts = async () => {
 	try {
 		const db: Database = getDatabase();
 		const ref = db.ref(`posts`);
-		const snapshot: DataSnapshot = await ref.once("value");
+		const snapshot: DataSnapshot = await ref
+			.orderByChild("timestamp")
+			.once("value");
 
 		if (!snapshot.exists()) {
 			return {
@@ -24,20 +26,22 @@ const getPosts = async () => {
 		const postEntries = Object.entries(snapshot.val());
 
 		const posts = await Promise.all(
-			postEntries.map(async ([postId, value]: [string, any]) => {
-				const user = await getUserData(value.uid);
-				const { hasUserLiked, likes } = await getLikes(postId, value.uid);
-				const { comments } = await getComments(postId);
+			postEntries
+				.map(async ([postId, value]: [string, any]) => {
+					const user = await getUserData(value.uid);
+					const { hasUserLiked, likes } = await getLikes(postId, value.uid);
+					const { comments } = await getComments(postId);
 
-				return {
-					postId, // Include the postId
-					...value,
-					user,
-					hasUserLiked,
-					likes,
-					commentsCount: comments.length, // Fixed: use `commentsCount` for the length
-				};
-			}),
+					return {
+						postId, // Include the postId
+						...value,
+						user,
+						hasUserLiked,
+						likes,
+						commentsCount: comments.length, // Fixed: use `commentsCount` for the length
+					};
+				})
+				.reverse(), // Reverse the order of posts,
 		);
 
 		return {
@@ -175,7 +179,7 @@ const deleteComment = async (postid: string, commentid: string) => {
 const getComments = async (postid: string) => {
 	try {
 		const db: Database = getDatabase();
-		const ref = db.ref(`comments/${postid}`);
+		const ref = db.ref(`comments/${postid}`).orderByChild("timestamp");
 		const snapshot: DataSnapshot = await ref.once("value");
 
 		if (!snapshot.exists()) {
@@ -189,13 +193,15 @@ const getComments = async (postid: string) => {
 		const commentEntries = Object.entries(snapshot.val());
 
 		const comments = await Promise.all(
-			commentEntries.map(async ([_, value]: [string, any]) => {
-				const user = await getUserData(value.uid);
-				return {
-					...value,
-					user,
-				};
-			}),
+			commentEntries
+				.map(async ([_, value]: [string, any]) => {
+					const user = await getUserData(value.uid);
+					return {
+						...value,
+						user,
+					};
+				})
+				.reverse(), // Reverse the order of comments,
 		);
 
 		return {
