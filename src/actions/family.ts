@@ -8,38 +8,34 @@ import logger from "../utils/logger";
 import { getUserData } from "./accounts";
 import { getComments, getLikes } from "./posts";
 
-const getFamilies = async () => {
+const getFamilies = async (userId: string) => {
 	try {
 		const db: Database = getDatabase();
 
-		// 1️⃣ Fetch all data in parallel
-		const [usersSnap, postsSnap, likesSnap, commentsSnap] = await Promise.all([
-			db.ref("users").once("value"),
-			db.ref("posts").once("value"),
-			db.ref("likes").once("value"),
-			db.ref("comments").once("value"),
-		]);
+		const [usersSnap, postsSnap, likesSnap, commentsSnap, followingSnap] =
+			await Promise.all([
+				db.ref("users").once("value"),
+				db.ref("posts").once("value"),
+				db.ref("likes").once("value"),
+				db.ref("comments").once("value"),
+				db.ref(`following/${userId}`).once("value"),
+			]);
 
 		if (!usersSnap.exists()) {
 			return {
 				success: true,
 				message: "No families found",
+				user: null,
 				families: [],
 			};
 		}
 
 		const users = usersSnap.val() as Record<string, any>;
-		const posts = postsSnap.exists()
-			? (postsSnap.val() as Record<string, any>)
-			: {};
-		const likesData = likesSnap.exists()
-			? (likesSnap.val() as Record<string, any>)
-			: {};
-		const commentsData = commentsSnap.exists()
-			? (commentsSnap.val() as Record<string, any>)
-			: {};
+		const posts = postsSnap.exists() ? postsSnap.val() : {};
+		const likesData = likesSnap.exists() ? likesSnap.val() : {};
+		const commentsData = commentsSnap.exists() ? commentsSnap.val() : {};
+		const followingData = followingSnap.exists() ? followingSnap.val() : {};
 
-		// 2️⃣ Prepare accumulator
 		interface Stats {
 			id: string;
 			user: any;
@@ -48,24 +44,22 @@ const getFamilies = async () => {
 			totalComments: number;
 			totalEngagement: number;
 		}
+
 		const statsMap: Record<string, Stats> = {};
 
-		// 3️⃣ Iterate all posts once
 		for (const [postId, post] of Object.entries(posts)) {
-			const uid = (post as any).uid;
+			const uid = post.uid;
 			if (!uid) continue;
 
-			// Count likes & comments from the pre-fetched maps
-			const postLikesObj = likesData[postId] ?? {};
-			const postCommentsObj = commentsData[postId] ?? {};
-			const likeCount = Object.keys(postLikesObj).length;
-			const commentCount = Object.keys(postCommentsObj).length;
+			const postLikes = likesData[postId] ?? {};
+			const postComments = commentsData[postId] ?? {};
+			const likeCount = Object.keys(postLikes).length;
+			const commentCount = Object.keys(postComments).length;
 
-			// Initialize if first time
 			if (!statsMap[uid]) {
 				statsMap[uid] = {
 					id: uid,
-					user: users[uid],
+					user: users[uid] ?? {},
 					totalPosts: 0,
 					totalLikes: 0,
 					totalComments: 0,
@@ -79,8 +73,9 @@ const getFamilies = async () => {
 			statsMap[uid].totalEngagement += likeCount + commentCount;
 		}
 
-		// 4️⃣ Build and sort result
+		// Exclude the current user from the family list
 		const families = Object.values(statsMap)
+			.filter((s) => s.id !== userId)
 			.map((s) => ({
 				id: s.id,
 				...s.user,
@@ -88,12 +83,17 @@ const getFamilies = async () => {
 				totalLikes: s.totalLikes,
 				totalComments: s.totalComments,
 				totalEngagement: s.totalEngagement,
+				isFollowing: !!followingData[s.id],
 			}))
 			.sort((a, b) => b.totalEngagement - a.totalEngagement);
+
+		// User's profile
+		const user = users[userId] ?? null;
 
 		return {
 			success: true,
 			message: "Families ranked and fetched",
+			user,
 			families,
 		};
 	} catch (e) {
@@ -101,10 +101,12 @@ const getFamilies = async () => {
 		return {
 			success: false,
 			message: "Internal error",
+			user: null,
 			families: [],
 		};
 	}
 };
+
 const followFamily = async (followerUid: string, followingUid: string) => {
 	const db = getDatabase();
 	const updates: any = {};
@@ -222,7 +224,7 @@ const getFamilyPosts = async (uid: string) => {
 					...post,
 					user,
 					hasUserLiked,
-					likes: likesList,
+					likes: likesList.length,
 					commentsCount: commentList.length,
 					views,
 					score,
