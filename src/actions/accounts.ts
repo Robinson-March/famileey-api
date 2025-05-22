@@ -1,120 +1,144 @@
 import {
-  getDatabase,
-  type Database,
-  type DataSnapshot,
-  type FirebaseDatabaseError,
-  type Reference,
+	getDatabase,
+	type Database,
+	type DataSnapshot,
+	type FirebaseDatabaseError,
+	type Reference,
 } from "firebase-admin/database";
 import type {
-  DummyAccount,
-  FamilleyData,
-  FamilleyRegistrationData,
-  GetUserMiddleware,
+	DummyAccount,
+	FamilleyData,
+	FamilleyRegistrationData,
+	GetUserMiddleware,
 } from "../utils/interfaces";
 import logger from "../utils/logger";
 import type { FirebaseError } from "firebase-admin";
 import { getAuth } from "firebase-admin/auth";
 
 const checkIfUserExist = async (data: FamilleyData): Promise<boolean> => {
-  try {
-    const auth = getAuth();
+	try {
+		const auth = getAuth();
 
-    // 1. Check by email
-    if (data.email) {
-      try {
-        await auth.getUserByEmail(data.email);
-        logger.info(`User with email ${data.email} already exists`);
-        return true;
-      } catch (error: any) {
-        if (error.code !== "auth/user-not-found") {
-          throw error;
-        }
-      }
-    }
+		// 1. Check by email
+		if (data.email) {
+			try {
+				await auth.getUserByEmail(data.email);
+				logger.info(`User with email ${data.email} already exists`);
+				return true;
+			} catch (error: any) {
+				if (error.code !== "auth/user-not-found") {
+					throw error;
+				}
+			}
+		}
 
-    // 2. Check by phone
-    if (data.phone) {
-      try {
-        await auth.getUserByPhoneNumber(data.phone);
-        logger.info(`User with phone ${data.phone} already exists`);
-        return true;
-      } catch (error: any) {
-        if (error.code !== "auth/user-not-found") {
-          throw error;
-        }
-      }
-    }
+		// 2. Check by phone
+		if (data.phone) {
+			try {
+				await auth.getUserByPhoneNumber(data.phone);
+				logger.info(`User with phone ${data.phone} already exists`);
+				return true;
+			} catch (error: any) {
+				if (error.code !== "auth/user-not-found") {
+					throw error;
+				}
+			}
+		}
 
-    // ✅ If no matches found
-    return false;
-  } catch (e) {
-    logger.error(`checkIfUserExist Error`, e);
-    return false;
-  }
+		// ✅ If no matches found
+		return false;
+	} catch (e) {
+		logger.error(`checkIfUserExist Error`, e);
+		return false;
+	}
 };
 
 const getUserData = async (id: string) => {
-  try {
-    const db: Database = getDatabase();
-    const ref = db.ref(`users/${id}`);
-    const snapshot: DataSnapshot = await ref.once("value"); // Use await here
-    if (!snapshot.exists()) {
-      throw new Error("User does not exist");
-    }
-    const { password,confirmPassword, ...userWithoutPassword } = snapshot.val();
-    return userWithoutPassword;
-  } catch (e: any) {
-    logger.error(`getUserData Action`, e);
-    throw new Error(e); // Or handle the error as appropriate
-  }
+	try {
+		const db: Database = getDatabase();
+		const userRef = db.ref(`users/${id}`);
+		const followingRef = db.ref(`following/${id}`);
+		const followersRef = db.ref(`followers/${id}`);
+
+		// Fetch user, following, and followers in parallel
+		const [userSnap, followingSnap, followersSnap] = await Promise.all([
+			userRef.once("value"),
+			followingRef.once("value"),
+			followersRef.once("value"),
+		]);
+
+		if (!userSnap.exists()) {
+			throw new Error("User does not exist");
+		}
+
+		const { password, confirmPassword, ...userWithoutPassword } =
+			userSnap.val();
+
+		// Count following and followers
+		const followingCount = followingSnap.exists()
+			? Object.keys(followingSnap.val()).length
+			: 0;
+		const followersCount = followersSnap.exists()
+			? Object.keys(followersSnap.val()).length
+			: 0;
+
+		return {
+			...userWithoutPassword,
+			followingCount,
+			followersCount,
+		};
+	} catch (e: any) {
+		logger.error(`getUserData Action`, e);
+		throw new Error(e); // Or handle the error as appropriate
+	}
 };
 
 const registerUser = async (
-  user: FamilleyRegistrationData
+	user: FamilleyRegistrationData,
 ): Promise<string | null> => {
-  try {
-    if (await checkIfUserExist(user)) {
-      logger.info("User already exists, skipping registration.");
-      return null;
-    } else {
-      const auth = getAuth();
-      const createdUser = await auth.createUser({
-        email: user.email,
-        phoneNumber: user.phone,
-        displayName: `${user.familyName}`,
-        password: user.password,
-        emailVerified: false,
-        disabled: false,
-      });
-      // Create a new object that excludes the password property
-      const { password, ...userWithoutPassword } = user;
+	try {
+		if (await checkIfUserExist(user)) {
+			logger.info("User already exists, skipping registration.");
+			return null;
+		} else {
+			const auth = getAuth();
+			const createdUser = await auth.createUser({
+				email: user.email,
+				phoneNumber: user.phone,
+				displayName: `${user.familyName}`,
+				password: user.password,
+				emailVerified: false,
+				disabled: false,
+			});
+			// Create a new object that excludes the password property
+			const { password, confirmPassword, ...userWithoutPassword } = user;
 
-      // Use the new object without the password for subsequent operations
-      await updateUser(createdUser.uid, userWithoutPassword);
+			// Use the new object without the password for subsequent operations
+			await updateUser(createdUser.uid, userWithoutPassword);
 
-      const token = await auth.createCustomToken(createdUser.uid);
+			const token = await auth.createCustomToken(createdUser.uid);
 
-      logger.info(`User ${createdUser.uid} created successfully.`);
-      return token;
-    }
-  } catch (e) {
-    logger.error("registerUser Error", e);
-    return null;
-  }
+			logger.info(`User ${createdUser.uid} created successfully.`);
+			return token;
+		}
+	} catch (e) {
+		logger.error("registerUser Error", e);
+		return null;
+	}
 };
 const updateUser = async (userId: string, updateData: FamilleyData) => {
-  try {
-    const result = await getUserData(userId);
-    if (!result) {
-      return { success: true, message: "User does not exist" };
-    }
-    const db: Database = getDatabase();
-    const ref = db.ref(`users/${userId}`);
-    await ref.update(updateData);
-    return { success: true, message: "User updated" };
-  } catch (e) {
-    logger.error(`updateUser Action`, e);
-  }
+	try {
+		const result = await getUserData(userId);
+		if (!result) {
+			return { success: true, message: "User does not exist" };
+		}
+		const db: Database = getDatabase();
+		const ref = db.ref(`users/${userId}`);
+		await ref.update(updateData);
+		return { success: true, message: "User updated" };
+	} catch (e) {
+		logger.error(`updateUser Action`, e);
+	}
 };
 
 export { checkIfUserExist, registerUser, updateUser, getUserData };
