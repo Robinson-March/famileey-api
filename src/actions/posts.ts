@@ -40,7 +40,8 @@ const getPosts = async () => {
 						likes,
 						commentsCount: comments.length, // Fixed: use `commentsCount` for the length
 					};
-				}), // Reverse the order of posts,
+				})
+				.reverse(), // Reverse the order of posts,
 		);
 
 		return {
