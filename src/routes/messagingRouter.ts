@@ -63,15 +63,15 @@ messagingRouter.get("/chats", async (req: Request, res: Response) => {
 });
 
 // Mark chat as read
-messagingRouter.post(
-	"/read/:chatId",
-	bodyInspector(["chatId"]),
+messagingRouter.patch(
+	"/read/:chatId/:messageId",
+	bodyInspector(["chatId", "messageId"]),
 	async (req: Request, res: Response) => {
 		try {
 			const userId = req.user.uid;
-			const { chatId } = req.params;
+			const { chatId, messageId } = req.params;
 			logger.info(`Mark chat ${chatId} as read by user ${userId}`);
-			const result = await markChatAsRead(chatId, userId);
+			const result = await markChatAsRead(chatId, messageId, userId);
 			res.json(result);
 		} catch (e: any) {
 			logger.error(`Mark chat as read error: ${e.message}`);

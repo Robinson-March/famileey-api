@@ -152,10 +152,45 @@ const getUserChats = async (userId: string) => {
 };
 
 // Mark chat as read by a user
-const markChatAsRead = async (chatId: string, userId: string) => {
+const markChatAsRead = async (
+	chatId: string,
+	messageId: string,
+	userId: string,
+) => {
 	const db: Database = getDatabase();
+
+	// Fetch the message to check the sender
+	const messageSnap = await db
+		.ref(`chats/${chatId}/messages/${messageId}`)
+		.once("value");
+	if (!messageSnap.exists()) {
+		return { success: false, message: "Message not found" };
+	}
+	const message = messageSnap.val();
+
+	// Do not mark as read if user is the sender
+	if (message.senderId === userId) {
+		return {
+			success: false,
+			message: "Sender should not mark their own message as read",
+		};
+	}
+
 	const timestamp = Date.now();
-	await db.ref(`chats/${chatId}/readStatus/${userId}`).set(timestamp);
+
+	// Update the readStatus for the specific message
+	await db
+		.ref(`chats/${chatId}/messages/${messageId}/readStatus/${userId}`)
+		.update(timestamp);
+
+	// Update the readStatus for the chat's lastMessage
+	await db
+		.ref(`chats/${chatId}/lastMessage/readStatus/${userId}`)
+		.update(timestamp);
+
+	// Update the general readStatus for the chat
+	await db.ref(`chats/${chatId}/readStatus/${userId}`).update(timestamp);
+
 	return { success: true, message: "Chat marked as read" };
 };
 
