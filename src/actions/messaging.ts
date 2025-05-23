@@ -62,11 +62,25 @@ const sendMessage = async (
 		status: "sent",
 	};
 
-	const updates: any = {};
-	updates[`chats/${chatId}/messages/${messageId}`] = message;
-	updates[`chats/${chatId}/lastMessage`] = { text, timestamp };
-	updates[`chats/${chatId}/readStatus/${senderId}`] = timestamp;
-	updates[`chats/${chatId}/readStatus/${recipientId}`] = null;
+	const chatRef = db.ref(`chats/${chatId}`);
+	const chatSnap = await chatRef.once("value");
+	let participantsUpdate = {};
+	if (!chatSnap.exists() || !chatSnap.val().participants) {
+		participantsUpdate = {
+			[`chats/${chatId}/participants`]: {
+				[senderId]: true,
+				[recipientId]: true,
+			},
+		};
+	}
+
+	const updates: any = {
+		[`chats/${chatId}/messages/${messageId}`]: message,
+		[`chats/${chatId}/lastMessage`]: { text, timestamp },
+		[`chats/${chatId}/readStatus/${senderId}`]: timestamp,
+		[`chats/${chatId}/readStatus/${recipientId}`]: null,
+		...participantsUpdate,
+	};
 
 	try {
 		await db.ref().update(updates);
@@ -106,12 +120,18 @@ const getUserChats = async (userId: string) => {
 
 			const chat = chatSnap.val();
 			const participantIds = Object.keys(chat.participants || {});
+
 			const participants = await Promise.all(
 				participantIds.map(async (uid) => {
 					try {
 						const user = await getUserData(uid);
+						if (!user) {
+							console.warn(`User not found for uid: ${uid}`);
+							return { uid, error: "User not found" };
+						}
 						return { uid, ...user };
-					} catch {
+					} catch (err) {
+						console.warn(`Error fetching user data for uid: ${uid}`, err);
 						return { uid, error: "User not found" };
 					}
 				}),
@@ -120,7 +140,7 @@ const getUserChats = async (userId: string) => {
 			return {
 				chatId,
 				withUser: otherUserId,
-				participants,
+				participants, // This will always be an array, even if some are errors
 				lastMessage: chat.lastMessage || null,
 				readStatus: chat.readStatus?.[userId] || null,
 			};
