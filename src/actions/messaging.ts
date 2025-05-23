@@ -181,15 +181,15 @@ const markChatAsRead = async (
 	// Update the readStatus for the specific message
 	await db
 		.ref(`chats/${chatId}/messages/${messageId}/readStatus/${userId}`)
-		.update(timestamp);
+		.set(timestamp);
 
 	// Update the readStatus for the chat's lastMessage
 	await db
 		.ref(`chats/${chatId}/lastMessage/readStatus/${userId}`)
-		.update(timestamp);
+		.set(timestamp);
 
 	// Update the general readStatus for the chat
-	await db.ref(`chats/${chatId}/readStatus/${userId}`).update(timestamp);
+	await db.ref(`chats/${chatId}/readStatus/${userId}`).set(timestamp);
 
 	return { success: true, message: "Chat marked as read" };
 };
