@@ -65,7 +65,6 @@ messagingRouter.get("/chats", async (req: Request, res: Response) => {
 // Mark chat as read
 messagingRouter.patch(
 	"/read/:chatId/:messageId",
-	bodyInspector(["chatId", "messageId"]),
 	async (req: Request, res: Response) => {
 		try {
 			const userId = req.user.uid;
