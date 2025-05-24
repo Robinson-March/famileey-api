@@ -35,7 +35,7 @@ const getFamilies = async (userId: string) => {
 		const likesData = likesSnap.exists() ? likesSnap.val() : {};
 		const commentsData = commentsSnap.exists() ? commentsSnap.val() : {};
 		const followingData = followingSnap.exists() ? followingSnap.val() : {};
-
+		console.log(JSON.stringify(followingData, null, 2));
 		interface Stats {
 			id: string;
 			user: any;
@@ -76,15 +76,21 @@ const getFamilies = async (userId: string) => {
 		// Exclude the current user from the family list
 		const families = Object.values(statsMap)
 			.filter((s) => s.id !== userId)
-			.map((s) => ({
-				id: s.id,
-				...s.user,
-				totalPosts: s.totalPosts,
-				totalLikes: s.totalLikes,
-				totalComments: s.totalComments,
-				totalEngagement: s.totalEngagement,
-				isFollowing: !!followingData[s.id],
-			}))
+			.map((s) => {
+				console.log(
+					`Checking if user ${userId} is following ${s.id}:`,
+					!!followingData[s.id],
+				);
+				return {
+					id: s.id,
+					...s.user,
+					totalPosts: s.totalPosts,
+					totalLikes: s.totalLikes,
+					totalComments: s.totalComments,
+					totalEngagement: s.totalEngagement,
+					isFollowing: !!followingData[s.id] || false,
+				};
+			})
 			.sort((a, b) => b.totalEngagement - a.totalEngagement);
 
 		// User's profile
@@ -93,7 +99,6 @@ const getFamilies = async (userId: string) => {
 		return {
 			success: true,
 			message: "Families ranked and fetched",
-			user,
 			families,
 		};
 	} catch (e) {

@@ -22,7 +22,7 @@ familyRouter.get(
 	"/",
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			const result = await getFamilies();
+			const result = await getFamilies(req.user.uid);
 			if (!result?.success) {
 				res.status(400).json({
 					success: false,
