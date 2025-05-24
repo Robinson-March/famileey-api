@@ -100,27 +100,29 @@ const registerUser = async (
 		if (await checkIfUserExist(user)) {
 			logger.info("User already exists, skipping registration.");
 			return null;
-		} else {
-			const auth = getAuth();
-			const createdUser = await auth.createUser({
-				email: user.email,
-				phoneNumber: user.phone,
-				displayName: `${user.familyName}`,
-				password: user.password,
-				emailVerified: false,
-				disabled: false,
-			});
-			// Create a new object that excludes the password property
-			const { password, confirmPassword, ...userWithoutPassword } = user;
-
-			// Use the new object without the password for subsequent operations
-			await updateUser(createdUser.uid, userWithoutPassword);
-
-			const token = await auth.createCustomToken(createdUser.uid);
-
-			logger.info(`User ${createdUser.uid} created successfully.`);
-			return token;
 		}
+		const auth = getAuth();
+		const createdUser = await auth.createUser({
+			email: user.email,
+			phoneNumber: user.phone,
+			displayName: `${user.familyName}`,
+			password: user.password,
+			emailVerified: false,
+			disabled: false,
+		});
+		const { password, confirmPassword, ...userWithoutPassword } = user;
+		const updateResult = await updateUser(createdUser.uid, userWithoutPassword);
+
+		if (!updateResult?.success) {
+			// Rollback: delete the Auth user if DB update fails
+			await auth.deleteUser(createdUser.uid);
+			logger.error("registerUser Error: DB update failed, user rolled back");
+			return null;
+		}
+
+		const token = await auth.createCustomToken(createdUser.uid);
+		logger.info(`User ${createdUser.uid} created successfully.`);
+		return token;
 	} catch (e) {
 		logger.error("registerUser Error", e);
 		return null;
@@ -130,7 +132,7 @@ const updateUser = async (userId: string, updateData: FamilleyData) => {
 	try {
 		const result = await getUserData(userId);
 		if (!result) {
-			return { success: true, message: "User does not exist" };
+			return { success: false, message: "User does not exist" };
 		}
 		const db: Database = getDatabase();
 		const ref = db.ref(`users/${userId}`);
@@ -138,6 +140,7 @@ const updateUser = async (userId: string, updateData: FamilleyData) => {
 		return { success: true, message: "User updated" };
 	} catch (e) {
 		logger.error(`updateUser Action`, e);
+		return { success: false, message: "Failed to update user" };
 	}
 };
 
