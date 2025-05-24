@@ -97,37 +97,52 @@ const registerUser = async (
 	user: FamilleyRegistrationData,
 ): Promise<string | null> => {
 	try {
+		// Step 1: Check if user already exists
 		if (await checkIfUserExist(user)) {
 			logger.info("User already exists, skipping registration.");
 			return null;
 		}
+
+		// Step 2: Create user in Firebase Auth
 		const auth = getAuth();
 		const createdUser = await auth.createUser({
 			email: user.email,
 			phoneNumber: user.phone,
-			displayName: `${user.familyName}`,
+			displayName: user.familyName,
 			password: user.password,
 			emailVerified: false,
 			disabled: false,
 		});
-		const { password, confirmPassword, ...userWithoutPassword } = user;
-		const updateResult = await updateUser(createdUser.uid, userWithoutPassword);
 
-		if (!updateResult?.success) {
-			// Rollback: delete the Auth user if DB update fails
-			await auth.deleteUser(createdUser.uid);
-			logger.error("registerUser Error: DB update failed, user rolled back");
-			return null;
+		// Step 3: Remove sensitive fields before saving to DB
+		const { password, confirmPassword, ...userWithoutPassword } = user;
+
+		// Step 4: Save user data to Realtime Database
+		const db: Database = getDatabase();
+		const userRef = db.ref(`users/${createdUser.uid}`);
+		await userRef.update(userWithoutPassword);
+
+		// Step 5: Generate custom token
+		const token = await auth.createCustomToken(createdUser.uid);
+		logger.info(`User ${createdUser.uid} created and saved successfully.`);
+		return token;
+	} catch (e: any) {
+		logger.error("registerUser Error", e);
+
+		// Optional rollback if Firebase Auth creation succeeded but DB failed
+		if (e?.uid) {
+			try {
+				await getAuth().deleteUser(e.uid);
+				logger.warn(`Rolled back Auth user with uid: ${e.uid}`);
+			} catch (rollbackError) {
+				logger.error("Failed to rollback user from Auth", rollbackError);
+			}
 		}
 
-		const token = await auth.createCustomToken(createdUser.uid);
-		logger.info(`User ${createdUser.uid} created successfully.`);
-		return token;
-	} catch (e) {
-		logger.error("registerUser Error", e);
 		return null;
 	}
 };
+
 const updateUser = async (userId: string, updateData: FamilleyData) => {
 	try {
 		const result = await getUserData(userId);
