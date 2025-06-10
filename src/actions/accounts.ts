@@ -53,44 +53,51 @@ const checkIfUserExist = async (data: FamilleyData): Promise<boolean> => {
 	}
 };
 
-const getUserData = async (id: string) => {
-	try {
-		const db: Database = getDatabase();
-		const userRef = db.ref(`users/${id}`);
-		const followingRef = db.ref(`following/${id}`);
-		const followersRef = db.ref(`followers/${id}`);
+const getUserData = async (id: string, requesterId?: string) => {
+    try {
+        const db: Database = getDatabase();
+        const userRef = db.ref(`users/${id}`);
+        const followingRef = db.ref(`following/${id}`);
+        const followersRef = db.ref(`followers/${id}`);
 
-		// Fetch user, following, and followers in parallel
-		const [userSnap, followingSnap, followersSnap] = await Promise.all([
-			userRef.once("value"),
-			followingRef.once("value"),
-			followersRef.once("value"),
-		]);
+        const [userSnap, followingSnap, followersSnap] = await Promise.all([
+            userRef.once("value"),
+            followingRef.once("value"),
+            followersRef.once("value"),
+        ]);
 
-		if (!userSnap.exists()) {
-			throw new Error("User does not exist");
-		}
+        if (!userSnap.exists()) {
+            throw new Error("User does not exist");
+        }
 
-		const { password, confirmPassword, ...userWithoutPassword } =
-			userSnap.val();
+        const { password, confirmPassword, ...userWithoutPassword } = userSnap.val();
 
-		// Count following and followers
-		const followingCount = followingSnap.exists()
-			? Object.keys(followingSnap.val()).length
-			: 0;
-		const followersCount = followersSnap.exists()
-			? Object.keys(followersSnap.val()).length
-			: 0;
+        const followingCount = followingSnap.exists()
+            ? Object.keys(followingSnap.val()).length
+            : 0;
+        const followersCount = followersSnap.exists()
+            ? Object.keys(followersSnap.val()).length
+            : 0;
 
-		return {
-			...userWithoutPassword,
-			followingCount,
-			followersCount,
-		};
-	} catch (e: any) {
-		logger.error(`getUserData Action`, e);
-		throw new Error(e); // Or handle the error as appropriate
-	}
+        let isFollowing = false;
+        if (requesterId && requesterId !== id) {
+            const requesterFollowingSnap = await db
+                .ref(`following/${requesterId}/${id}`)
+                .once("value");
+            isFollowing = requesterFollowingSnap.exists();
+        }
+
+        return {
+            ...userWithoutPassword,
+            followingCount,
+            followersCount,
+            uid: id,
+            isFollowing,
+        };
+    } catch (e: any) {
+        logger.error(`getUserData Action`, e);
+        throw new Error(e);
+    }
 };
 
 const registerUser = async (
@@ -159,4 +166,15 @@ const updateUser = async (userId: string, updateData: FamilleyData) => {
 	}
 };
 
-export { checkIfUserExist, registerUser, updateUser, getUserData };
+const saveExpoToken = async (userId: string, expoToken: string) => {
+    try {
+        const db: Database = getDatabase();
+        await db.ref(`expo-tokens/${userId}`).set(expoToken);
+        return { success: true, message: "Expo token saved" };
+    } catch (e) {
+        logger.error("saveExpoToken error", e);
+        return { success: false, message: "Failed to save expo token" };
+    }
+};
+
+export { checkIfUserExist, registerUser, updateUser, getUserData,saveExpoToken };

@@ -18,6 +18,7 @@ import { verifyFirebaseToken } from "./src/middlewares/verifyFirebaseToken";
 import postsRouter from "./src/routes/postsRouter";
 import { familyRouter } from "./src/routes/familyRouter";
 import messagingRouter from "./src/routes/messagingRouter";
+import notificationRouter from "./src/routes/notificationRouter";
 
 const app = express();
 const PORT = process.env.PORT || 4011;
@@ -69,6 +70,7 @@ app.use("/api/accounts", accountRouter);
 app.use("/api/posts", verifyFirebaseToken, postsRouter);
 app.use("/api/families", verifyFirebaseToken, familyRouter);
 app.use("/api/messaging", verifyFirebaseToken, messagingRouter);
+app.use("/api/notifications", verifyFirebaseToken, notificationRouter);
 
 // ❌ 404 Not Found Middleware (Handles Unmatched Routes)
 app.use((req: Request, res: Response, next: NextFunction) => {

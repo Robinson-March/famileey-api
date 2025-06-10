@@ -11,6 +11,7 @@ import {
 	getUserChats,
 	markChatAsRead,
 	getOrCreateChatId,
+	setInChatStatus,
 } from "../actions/messaging";
 
 const messagingRouter = express.Router();
@@ -96,5 +97,21 @@ messagingRouter.post(
 		}
 	},
 );
+messagingRouter.post(
+    "/inchat/:chatId/:status",
+    async (req: Request, res: Response) => {
+        try {
+            const userId = req.user?.uid;
+            const { chatId, status } = req.params;
+            if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
 
+            const result = await setInChatStatus(userId, chatId, status === "true");
+            res.json(result);
+			return
+        } catch (e) {
+            res.status(500).json({ success: false, message: "Failed to update inChat status" });
+			return
+        }
+    }
+);
 export default messagingRouter;

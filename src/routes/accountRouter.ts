@@ -17,7 +17,7 @@ import type {
 	FamilleyData,
 	FamilleyRegistrationData,
 } from "../utils/interfaces";
-import { getUserData, registerUser, updateUser } from "../actions/accounts";
+import { getUserData, registerUser, saveExpoToken, updateUser } from "../actions/accounts";
 import { verifyFirebaseToken } from "../middlewares/verifyFirebaseToken";
 import { getAuth } from "firebase-admin/auth";
 
@@ -99,22 +99,24 @@ accountRouter.get(
 		}
 	},
 );
+// Example usage in Express route
 accountRouter.get(
-	"/user/:userid",
-	verifyFirebaseToken,
-	async (req: Request, res: Response) => {
-		const { userid } = req.params;
+    "/user/:userid",
+    verifyFirebaseToken,
+    async (req: Request, res: Response) => {
+        const { userid } = req.params;
+        const requesterId = req.user?.uid;
 
-		try {
-			const result = await getUserData(userid);
-			res.json({ success: true, result });
-			return;
-		} catch (error) {
-			logger.error("Error creating custom token", error);
-			res.status(500).json({ error: "Failed to get user by id" });
-			return;
-		}
-	},
+        try {
+            const result = await getUserData(userid, requesterId);
+            res.json({ success: true, result });
+            return;
+        } catch (error) {
+            logger.error("Error creating custom token", error);
+            res.status(500).json({ error: "Failed to get user by id" });
+            return;
+        }
+    },
 );
 
 // 🛠 Update account route
@@ -177,6 +179,25 @@ accountRouter.put(
 			next(e); // Pass error to global handler
 		}
 	},
+);
+
+accountRouter.post(
+    "/expo-token/:token",
+    verifyFirebaseToken,
+    async (req: Request, res: Response) => {
+        const userId = req?.user?.uid;
+        const expoToken = req.params.token;
+
+        if (!expoToken) {
+           
+			
+			res.status(400).json({ success: false, message: "expoToken is required" });
+			return 
+        }
+
+        const result = await saveExpoToken(userId, expoToken);
+        res.json(result);
+    }
 );
 
 // 📩 Webhook route

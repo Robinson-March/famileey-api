@@ -9,10 +9,12 @@ import bodyInspector from "../middlewares/bodyInspector";
 
 import { ServerValue } from "firebase-admin/database";
 import {
+	acceptFollowFamily,
 	followFamily,
 	getFamilies,
 	getFamilyPosts,
 	recordPostView,
+	requestFollowFamily,
 	searchFamilies,
 	unfollowFamily,
 } from "../actions/family";
@@ -154,6 +156,44 @@ familyRouter.post(
 			next(e); // Pass error to global handler
 		}
 	},
+);
+
+
+
+// Send follow request
+familyRouter.post(
+    "/request-follow/:familyId",
+    async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const { familyId } = req.params;
+            const result = await requestFollowFamily(req.user.uid, familyId);
+            if (!result?.success) {
+                return res.status(400).json(result);
+            }
+            res.status(200).json(result);
+        } catch (e) {
+            logger.error("Error in POST /request-follow", e);
+            next(e);
+        }
+    }
+);
+
+// Accept follow request
+familyRouter.post(
+    "/accept-follow/:requesterId",
+    async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const { requesterId } = req.params;
+            const result = await acceptFollowFamily(req.user.uid, requesterId);
+            if (!result?.success) {
+                return res.status(400).json(result);
+            }
+            res.status(200).json(result);
+        } catch (e) {
+            logger.error("Error in POST /accept-follow", e);
+            next(e);
+        }
+    }
 );
 
 export { familyRouter };

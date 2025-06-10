@@ -5,6 +5,7 @@ import {
 } from "firebase-admin/database";
 import { v4 as uuidv4 } from "uuid";
 import { getUserData } from "./accounts"; // Adjust path as needed
+import { addNotification } from "./notifications";
 
 // Get or create chatId for 1-on-1 chat
 const getOrCreateChatId = async (
@@ -44,51 +45,67 @@ const getOrCreateChatId = async (
 
 // Send a message in a chat
 const sendMessage = async (
-	senderId: string,
-	recipientId: string,
-	text: string,
-	type: "text" | "image" = "text",
+    senderId: string,
+    recipientId: string,
+    text: string,
+    type: "text" | "image" = "text",
 ) => {
-	const db: Database = getDatabase();
-	const chatId = await getOrCreateChatId(senderId, recipientId);
-	const messageId = uuidv4();
-	const timestamp = ServerValue.TIMESTAMP;
+    const db: Database = getDatabase();
+    const chatId = await getOrCreateChatId(senderId, recipientId);
+    const messageId = uuidv4();
+    const timestamp = ServerValue.TIMESTAMP;
 
-	const message = {
-		senderId,
-		text,
-		timestamp,
-		type,
-		status: "sent",
-	};
+    const message = {
+        senderId,
+        text,
+        timestamp,
+        type,
+        status: "sent",
+    };
 
-	const chatRef = db.ref(`chats/${chatId}`);
-	const chatSnap = await chatRef.once("value");
-	let participantsUpdate = {};
-	if (!chatSnap.exists() || !chatSnap.val().participants) {
-		participantsUpdate = {
-			[`chats/${chatId}/participants`]: {
-				[senderId]: true,
-				[recipientId]: true,
-			},
-		};
-	}
+    const chatRef = db.ref(`chats/${chatId}`);
+    const chatSnap = await chatRef.once("value");
+    let participantsUpdate = {};
+    if (!chatSnap.exists() || !chatSnap.val().participants) {
+        participantsUpdate = {
+            [`chats/${chatId}/participants`]: {
+                [senderId]: true,
+                [recipientId]: true,
+            },
+        };
+    }
 
-	const updates: any = {
-		[`chats/${chatId}/messages/${messageId}`]: message,
-		[`chats/${chatId}/lastMessage`]: { text, timestamp },
-		[`chats/${chatId}/readStatus/${senderId}`]: timestamp,
-		[`chats/${chatId}/readStatus/${recipientId}`]: null,
-		...participantsUpdate,
-	};
+    const updates: any = {
+        [`chats/${chatId}/messages/${messageId}`]: message,
+        [`chats/${chatId}/lastMessage`]: { text, timestamp },
+        [`chats/${chatId}/readStatus/${senderId}`]: timestamp,
+        [`chats/${chatId}/readStatus/${recipientId}`]: null,
+        ...participantsUpdate,
+    };
 
-	try {
-		await db.ref().update(updates);
-		return { success: true, message: "Message sent", messageId, chatId };
-	} catch (e) {
-		console.error(e);
-		return { success: false, message: "Failed to send message" };
-	}
+    try {
+        await db.ref().update(updates);
+
+        // Check if recipient is currently in the chat
+        const inChatSnap = await db.ref(`inChat/${recipientId}/${chatId}`).once("value");
+        const inChat = inChatSnap.exists() ? !!inChatSnap.val() : false;
+
+        if (recipientId !== senderId && inChat == false) {
+            const fromUser = await getUserData(senderId);
+await addNotification(
+    recipientId,
+    "message",
+    senderId,
+    "You have a new message",
+    { chatId },
+    { photoUrl: fromUser.photoUrl }
+);
+        }
+        return { success: true, message: "Message sent", messageId, chatId };
+    } catch (e) {
+        console.error(e);
+        return { success: false, message: "Failed to send message" };
+    }
 };
 
 // Get all messages in a chat
@@ -193,6 +210,16 @@ const markChatAsRead = async (
 
 	return { success: true, message: "Chat marked as read" };
 };
+const setInChatStatus = async (userId: string, chatId: string, status: boolean) => {
+    const db: Database = getDatabase();
+    try {
+        await db.ref(`inChat/${userId}/${chatId}`).set(status);
+        return { success: true, inChat: status };
+    } catch (e) {
+        console.error("Failed to update inChat status", e);
+        return { success: false, message: "Failed to update inChat status" };
+    }
+};
 
 export {
 	sendMessage,
@@ -200,4 +227,5 @@ export {
 	getUserChats,
 	markChatAsRead,
 	getOrCreateChatId,
+	setInChatStatus
 };

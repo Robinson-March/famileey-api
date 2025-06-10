@@ -6,6 +6,7 @@ import {
 import type { FamilleyPostData } from "../utils/interfaces";
 import logger from "../utils/logger";
 import { getUserData } from "./accounts";
+import { addNotification } from "./notifications";
 
 const getPosts = async () => {
 	try {
@@ -70,18 +71,34 @@ const uploadPost = async (postData: FamilleyPostData) => {
 	}
 };
 const likePost = async (postData: {
-	postid: string;
-	timestamp: {};
-	uid: any;
+    postid: string;
+    timestamp: {};
+    uid: any;
 }) => {
-	try {
-		const db: Database = getDatabase();
-		const ref = db.ref(`likes/${postData.postid}/${postData.uid}`);
-		await ref.set(postData);
-		return { success: true, message: "Post Liked" };
-	} catch (e) {
-		logger.error(`Like post action`, e);
-	}
+    try {
+        const db: Database = getDatabase();
+        const ref = db.ref(`likes/${postData.postid}/${postData.uid}`);
+        await ref.set(postData);
+
+        // Fetch post to get owner
+        const postSnap = await db.ref(`posts/${postData.postid}`).once("value");
+        if (postSnap.exists()) {
+            const post = postSnap.val();
+            if (post.uid !== postData.uid) { // Don't notify self-like
+                await addNotification(
+                    post.uid,
+                    "like",
+                    postData.uid,
+                    "Someone liked your post",
+                    { postId: postData.postid }
+                );
+            }
+        }
+
+        return { success: true, message: "Post Liked" };
+    } catch (e) {
+        logger.error(`Like post action`, e);
+    }
 };
 const unlikePost = async (postid: string, uid: string) => {
 	try {
@@ -151,19 +168,37 @@ const getLikes = async (postid: string, uid: string) => {
 	}
 };
 const addComment = async (commentData: {
-	uid: string;
-	comment: string;
-	postid: string;
-	timestamp: {};
+    uid: string;
+    comment: string;
+    postid: string;
+    timestamp: {};
 }) => {
-	try {
-		const db: Database = getDatabase();
-		const ref = db.ref(`comments/${commentData.postid}`).push();
-		await ref.set(commentData);
-		return { success: true, message: "Comment posted" };
-	} catch (e) {
-		logger.error(`Comment add action`, e);
-	}
+    try {
+        const db: Database = getDatabase();
+        const ref = db.ref(`comments/${commentData.postid}`).push();
+        await ref.set(commentData);
+
+        // Fetch post to get owner
+        const postSnap = await db.ref(`posts/${commentData.postid}`).once("value");
+        if (postSnap.exists()) {
+            const post = postSnap.val();
+            if (post.uid !== commentData.uid) { // Don't notify self-comment
+                const fromUser = await getUserData(commentData.uid);
+                await addNotification(
+                    post.uid, // Notify the post owner
+                    "comment",
+                    commentData.uid, // Commenter's UID
+                    "Someone commented on your post",
+                    { postId: commentData.postid },
+                    { photoUrl: fromUser.photoUrl } // richContent: commenter's photo
+                );
+            }
+        }
+
+        return { success: true, message: "Comment posted" };
+    } catch (e) {
+        logger.error(`Comment add action`, e);
+    }
 };
 const deleteComment = async (postid: string, commentid: string) => {
 	try {

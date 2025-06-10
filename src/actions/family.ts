@@ -7,6 +7,7 @@ import type { FamilleyPostData } from "../utils/interfaces";
 import logger from "../utils/logger";
 import { getUserData } from "./accounts";
 import { getComments, getLikes } from "./posts";
+import { addNotification } from "./notifications";
 
 const getFamilies = async (userId: string) => {
 	try {
@@ -265,6 +266,54 @@ const recordPostView = async (postId: string) => {
 	}
 };
 
+const requestFollowFamily = async (requesterUid: string, targetUid: string) => {
+    const db = getDatabase();
+    const ref = db.ref(`followRequests/${targetUid}/${requesterUid}`);
+    try {
+        await ref.set(true);
+        // Notify the target user
+		const fromUser = await getUserData(requesterUid);
+		await addNotification(
+			targetUid,
+			"follow-request",
+			requesterUid,
+			"You have a new follow request",
+			{}, // data
+			{ photoUrl: fromUser.photoUrl } // richContent
+		);
+        return { success: true, message: "Follow request sent" };
+    } catch (e) {
+        logger.error("requestFollowFamily error", e);
+        return { success: false, message: "Failed to send follow request" };
+    }
+};
+
+const acceptFollowFamily = async (targetUid: string, requesterUid: string) => {
+    const db = getDatabase();
+    const updates: any = {};
+    updates[`following/${requesterUid}/${targetUid}`] = true;
+    updates[`followers/${targetUid}/${requesterUid}`] = true;
+    updates[`followRequests/${targetUid}/${requesterUid}`] = null; // remove request
+
+    try {
+        await db.ref().update(updates);
+        // Notify the requester
+		const fromUser = await getUserData(targetUid);
+		await addNotification(
+			targetUid,
+			"follow-request",
+			requesterUid,
+			"You have a new follow request",
+			{}, // data
+			{ photoUrl: fromUser.photoUrl } // richContent
+		);
+        return { success: true, message: "Follow request accepted" };
+    } catch (e) {
+        logger.error("acceptFollowFamily error", e);
+        return { success: false, message: "Failed to accept follow request" };
+    }
+};
+
 export {
 	getFamilies,
 	getFamilyPosts,
@@ -272,4 +321,5 @@ export {
 	followFamily,
 	unfollowFamily,
 	recordPostView,
+	requestFollowFamily,acceptFollowFamily
 };
