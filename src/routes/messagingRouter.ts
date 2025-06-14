@@ -12,6 +12,10 @@ import {
 	markChatAsRead,
 	getOrCreateChatId,
 	setInChatStatus,
+	broadcastMessage,
+	broadcastGroupMessage,
+	getOrCreateBroadcastGroup,
+	sendGroupMessage,
 } from "../actions/messaging";
 
 const messagingRouter = express.Router();
@@ -114,4 +118,32 @@ messagingRouter.post(
         }
     }
 );
+messagingRouter.post(
+    "/broadcast",
+    async (req: Request, res: Response) => {
+        const adminId = req.user?.uid;
+        const { text, type } = req.body;
+        if (!adminId || !text) {
+            return res.status(400).json({ success: false, message: "Missing adminId or text" });
+        }
+        const result = await broadcastGroupMessage(adminId, text, type || "text");
+        res.json(result);
+    }
+);
+
+// Send a message in a group chat
+messagingRouter.post(
+    "/group/send",
+    async (req: Request, res: Response) => {
+        const senderId = req.user?.uid;
+        const { groupId, text, type } = req.body;
+        if (!senderId || !groupId || !text) {
+            return res.status(400).json({ success: false, message: "Missing senderId, groupId, or text" });
+        }
+        const result = await sendGroupMessage(senderId, groupId, text, type || "text");
+        res.json(result);
+    }
+);
+
+
 export default messagingRouter;

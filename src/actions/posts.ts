@@ -85,12 +85,14 @@ const likePost = async (postData: {
         if (postSnap.exists()) {
             const post = postSnap.val();
             if (post.uid !== postData.uid) { // Don't notify self-like
+                const fromUser = await getUserData(postData.uid); // Get liker info
                 await addNotification(
                     post.uid,
                     "like",
                     postData.uid,
                     "Someone liked your post",
-                    { postId: postData.postid }
+                    { postId: postData.postid },
+                    { photoUrl: fromUser.photoUrl } // Include liker photoUrl
                 );
             }
         }
@@ -253,7 +255,44 @@ const getComments = async (postid: string) => {
 		};
 	}
 };
+const getPostById = async (postId: string) => {
+    try {
+        const db: Database = getDatabase();
+        const postSnap = await db.ref(`posts/${postId}`).once("value");
+        if (!postSnap.exists()) {
+            return {
+                success: false,
+                message: "Post not found",
+                post: null,
+            };
+        }
+        const post = postSnap.val();
+        const user = await getUserData(post.uid);
+        const { hasUserLiked, likes } = await getLikes(postId, post.uid);
+        const { comments } = await getComments(postId);
 
+        return {
+            success: true,
+            message: "Post fetched",
+            post: {
+                postId,
+                ...post,
+                user,
+                hasUserLiked,
+                likes,
+                commentsCount: comments.length,
+              
+            },
+        };
+    } catch (e) {
+        logger.error(`getPostById action`, e);
+        return {
+            success: false,
+            message: "Internal error",
+            post: null,
+        };
+    }
+};
 export {
 	uploadPost,
 	likePost,
@@ -263,4 +302,5 @@ export {
 	deleteComment,
 	getComments,
 	getPosts,
+	getPostById
 };

@@ -10,9 +10,12 @@ import bodyInspector from "../middlewares/bodyInspector";
 import { ServerValue } from "firebase-admin/database";
 import {
 	acceptFollowFamily,
+	cancelFollowRequest,
+	declineFollowRequest,
 	followFamily,
 	getFamilies,
 	getFamilyPosts,
+	getFollowers,
 	recordPostView,
 	requestFollowFamily,
 	searchFamilies,
@@ -191,6 +194,54 @@ familyRouter.post(
             res.status(200).json(result);
         } catch (e) {
             logger.error("Error in POST /accept-follow", e);
+            next(e);
+        }
+    }
+);
+familyRouter.post(
+    "/cancel-follow-request/:familyId",
+    async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const requesterUid = req.user.uid;
+            const { familyId } = req.params;
+            const result = await cancelFollowRequest(requesterUid, familyId);
+            if (!result?.success) {
+                return res.status(400).json(result);
+            }
+            res.status(200).json(result);
+        } catch (e) {
+            logger.error("Error in POST /cancel-follow-request", e);
+            next(e);
+        }
+    }
+);
+
+familyRouter.post(
+    "/decline-follow/:requesterId",
+    async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const { requesterId } = req.params;
+            const result = await declineFollowRequest(req.user.uid, requesterId);
+            if (!result?.success) {
+                res.status(400).json(result);
+            }
+            res.status(200).json(result);
+        } catch (e) {
+            logger.error("Error in POST /decline-follow-request", e);
+            next(e);
+        }
+    }
+);
+
+familyRouter.get(
+    "/followers/:familyId",
+    async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const { familyId } = req.params;
+            const followers = await getFollowers(familyId);
+            res.json({ success: true, followers });
+        } catch (e) {
+            logger.error("Error in GET /followers/:familyId", e);
             next(e);
         }
     }

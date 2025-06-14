@@ -13,6 +13,7 @@ import {
   deleteComment,
   getComments,
   getLikes,
+  getPostById,
   getPosts,
   likePost,
   unlikePost,
@@ -42,7 +43,26 @@ postsRouter.get(
     }
   }
 );
-
+postsRouter.get(
+  "/:postid",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { postid } = req.params;
+      const result = await getPostById(postid);
+      if (!result?.success) {
+        res.status(404).json({
+          success: false,
+          message: result?.message || "Post not found",
+        });
+        return;
+      }
+      res.status(200).json(result);
+    } catch (e: any) {
+      logger.error("Error in GET /posts/:postid:", e);
+      next(e);
+    }
+  }
+);
 postsRouter.post(
   "/upload",
   bodyInspector(["story", "photoUrl"]),

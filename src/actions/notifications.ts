@@ -94,14 +94,13 @@ const addNotification = async (
 
 const getNotifications = async (userId: string) => {
     const db = getDatabase();
-    const snap = await db.ref(`notifications/${userId}`).orderByChild("timestamp").once("value");
+    const snap = await db.ref(`notifications/${userId}`).once("value");
     if (!snap.exists()) return [];
-    const notifications = Object.entries(snap.val()).map(([id, value]: [string, any]) => ({
-        id,
-        ...value,
-    }));
-    // Most recent first
-    return notifications.reverse();
+    const notifications = Object.entries(snap.val())
+        .map(([id, value]: [string, any]) => ({ id, ...value }))
+        .filter(n => n.type && n.message)
+        .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)); // Sort by timestamp DESC
+    return notifications;
 };
 
 const markNotificationRead = async (userId: string, notificationId: string) => {
@@ -109,5 +108,32 @@ const markNotificationRead = async (userId: string, notificationId: string) => {
     await db.ref(`notifications/${userId}/${notificationId}/read`).set(true);
     return { success: true };
 };
+const removeFollowRequestNotification = async (
+    userId: string,      // The user who received the notification (targetUid)
+    fromUid: string      // The user who sent the request (requesterUid)
+) => {
+    const db = getDatabase();
+    // Fetch all notifications for the user
+    const snap = await db.ref(`notifications/${userId}`).once("value");
+    if (!snap.exists()) return { success: true };
 
-export { addNotification, getNotifications, markNotificationRead };
+    const notifications = snap.val();
+    // Find the notification with type "follow-request" and from.uid === fromUid
+    for (const [notifId, notif] of Object.entries(notifications)) {
+        if (notif.type === "follow-request" && notif.from?.uid === fromUid) {
+            await db.ref(`notifications/${userId}/${notifId}`).remove();
+        }
+    }
+    return { success: true };
+};
+const saveExpoToken = async (userId: string, expoToken: string) => {
+    const db = getDatabase();
+    try {
+        await db.ref(`expo-tokens/${userId}`).set(expoToken);
+        return { success: true, message: "Expo token saved" };
+    } catch (e) {
+        logger.error("saveExpoToken error", e);
+        return { success: false, message: "Failed to save expo token" };
+    }
+};
+export { addNotification, getNotifications, markNotificationRead,removeFollowRequestNotification,saveExpoToken };

@@ -123,49 +123,91 @@ const getChatMessages = async (chatId: string) => {
 
 // List all chats for a user
 const getUserChats = async (userId: string) => {
-	const db: Database = getDatabase();
-	const ref = db.ref(`userChats/${userId}`);
-	const snap = await ref.once("value");
-	if (!snap.exists()) return [];
+    const db: Database = getDatabase();
+    const chats: any[] = [];
 
-	const userChatMap = snap.val(); // { otherUserId: chatId }
+    // 1-on-1 chats
+    const userChatsSnap = await db.ref(`userChats/${userId}`).once("value");
+    if (userChatsSnap.exists()) {
+        const userChatMap = userChatsSnap.val(); // { otherUserId: chatId }
+        const chatDataPromises = Object.entries(userChatMap).map(
+            async ([otherUserId, chatId]: [string, any]) => {
+                const chatSnap = await db.ref(`chats/${chatId}`).once("value");
+                if (!chatSnap.exists()) return null;
 
-	const chatDataPromises = Object.entries(userChatMap).map(
-		async ([otherUserId, chatId]: [string, any]) => {
-			const chatSnap = await db.ref(`chats/${chatId}`).once("value");
-			if (!chatSnap.exists()) return null;
+                const chat = chatSnap.val();
+                const participantIds = Object.keys(chat.participants || {});
+                const participants = await Promise.all(
+                    participantIds.map(async (uid) => {
+                        try {
+                            const user = await getUserData(uid);
+                            if (!user) {
+                                return { uid, error: "User not found" };
+                            }
+                            return { uid, ...user };
+                        } catch (err) {
+                            return { uid, error: "User not found" };
+                        }
+                    }),
+                );
 
-			const chat = chatSnap.val();
-			const participantIds = Object.keys(chat.participants || {});
+                return {
+                    chatId,
+                    withUser: otherUserId,
+                    participants,
+                    lastMessage: chat.lastMessage || null,
+                    readStatus: chat.readStatus?.[userId] || null,
+                    isGroup: false,
+                    lastTimestamp: chat.lastMessage?.timestamp || 0,
+                };
+            },
+        );
+        chats.push(...(await Promise.all(chatDataPromises)).filter(Boolean));
+    }
 
-			const participants = await Promise.all(
-				participantIds.map(async (uid) => {
-					try {
-						const user = await getUserData(uid);
-						if (!user) {
-							console.warn(`User not found for uid: ${uid}`);
-							return { uid, error: "User not found" };
-						}
-						return { uid, ...user };
-					} catch (err) {
-						console.warn(`Error fetching user data for uid: ${uid}`, err);
-						return { uid, error: "User not found" };
-					}
-				}),
-			);
+    // Group chats
+    const groupRef = db.ref(`userGroups/${userId}`);
+    const groupSnap = await groupRef.once("value");
+    if (groupSnap.exists()) {
+        const groupMap = groupSnap.val(); // { groupId: { isBroadcastGroup: true/false } }
+        const groupDataPromises = Object.keys(groupMap).map(
+            async (groupId: string) => {
+                const groupChatSnap = await db.ref(`groupChats/${groupId}`).once("value");
+                if (!groupChatSnap.exists()) return null;
+                const group = groupChatSnap.val();
+                const participantIds = Object.keys(group.participants || {});
+                const participants = await Promise.all(
+                    participantIds.map(async (uid) => {
+                        try {
+                            const user = await getUserData(uid);
+                            if (!user) {
+                                return { uid, error: "User not found" };
+                            }
+                            return { uid, ...user };
+                        } catch (err) {
+                            return { uid, error: "User not found" };
+                        }
+                    }),
+                );
+                return {
+                    groupId,
+                    groupName: group.groupName,
+                    participants,
+                    lastMessage: group.lastMessage || null,
+                    isGroup: true,
+                    isBroadcastGroup: !!group.isBroadcastGroup,
+                    admin: group.admin,
+                    lastTimestamp: group.lastMessage?.timestamp || 0,
+                };
+            }
+        );
+        chats.push(...(await Promise.all(groupDataPromises)).filter(Boolean));
+    }
 
-			return {
-				chatId,
-				withUser: otherUserId,
-				participants, // This will always be an array, even if some are errors
-				lastMessage: chat.lastMessage || null,
-				readStatus: chat.readStatus?.[userId] || null,
-			};
-		},
-	);
+    // Sort all chats by last message timestamp (descending)
+    chats.sort((a, b) => (b.lastTimestamp || 0) - (a.lastTimestamp || 0));
 
-	const results = await Promise.all(chatDataPromises);
-	return results.filter((chat) => chat !== null);
+    return chats;
 };
 
 // Mark chat as read by a user
@@ -221,11 +263,133 @@ const setInChatStatus = async (userId: string, chatId: string, status: boolean) 
     }
 };
 
+const getOrCreateBroadcastGroup = async (adminId: string) => {
+    const db: Database = getDatabase();
+    // Try to get existing groupId
+    let groupIdSnap = await db.ref(`userGroups/${adminId}`).orderByChild('isBroadcastGroup').equalTo(true).once("value");
+    let groupId: string | undefined;
+    if (groupIdSnap.exists()) {
+        // Find the broadcast group for this admin
+        const groups = groupIdSnap.val();
+        for (const [gid, val] of Object.entries(groups)) {
+            const groupSnap = await db.ref(`groupChats/${gid}`).once("value");
+            if (groupSnap.exists() && groupSnap.val().admin === adminId && groupSnap.val().isBroadcastGroup) {
+                groupId = gid;
+                break;
+            }
+        }
+    }
+
+    // If found, ensure all current followers are participants
+    if (groupId) {
+        const followersSnap = await db.ref(`followers/${adminId}`).once("value");
+        const followers = followersSnap.exists() ? Object.keys(followersSnap.val()) : [];
+        const groupParticipantsSnap = await db.ref(`groupChats/${groupId}/participants`).once("value");
+        const groupParticipants = groupParticipantsSnap.exists() ? groupParticipantsSnap.val() : {};
+        const updates: any = {};
+        followers.forEach(fid => {
+            if (!groupParticipants[fid]) {
+                updates[`groupChats/${groupId}/participants/${fid}`] = true;
+                updates[`userGroups/${fid}/${groupId}`] = { isBroadcastGroup: true };
+            }
+        });
+        if (Object.keys(updates).length > 0) {
+            await db.ref().update(updates);
+        }
+        return groupId;
+    } else {
+        // Create new group
+        const followersSnap = await db.ref(`followers/${adminId}`).once("value");
+        const followers = followersSnap.exists() ? Object.keys(followersSnap.val()) : [];
+        const adminUser = await getUserData(adminId);
+        const newGroupId = uuidv4();
+        const participants = {
+            [adminId]: true,
+            ...Object.fromEntries(followers.map(fid => [fid, true])),
+        };
+        const groupData = {
+            groupName: `${adminUser.familyName}'s Family`,
+            admin: adminId,
+            participants,
+            createdAt: Date.now(),
+            isBroadcastGroup: true,
+        };
+        const updates: any = {};
+        updates[`groupChats/${newGroupId}`] = groupData;
+        updates[`userGroups/${adminId}/${newGroupId}`] = { isBroadcastGroup: true };
+        followers.forEach(fid => {
+            updates[`userGroups/${fid}/${newGroupId}`] = { isBroadcastGroup: true };
+        });
+        await db.ref().update(updates);
+        return newGroupId;
+    }
+};
+
+const sendGroupMessage = async (
+    senderId: string,
+    groupId: string,
+    text: string,
+    type: "text" | "image" = "text"
+) => {
+    const db: Database = getDatabase();
+    // Check if sender is a participant
+    const groupSnap = await db.ref(`groupChats/${groupId}/participants/${senderId}`).once("value");
+    if (!groupSnap.exists()) {
+        return { success: false, message: "You are not a participant in this group." };
+    }
+    const messageId = uuidv4();
+    const timestamp = ServerValue.TIMESTAMP;
+    const message = {
+        senderId,
+        text,
+        timestamp,
+        type,
+        status: "sent",
+        isGroup: true,
+    };
+    await db.ref(`groupChats/${groupId}/messages/${messageId}`).set(message);
+    await db.ref(`groupChats/${groupId}/lastMessage`).set({ text, timestamp, senderId });
+    return { success: true, groupId, messageId };
+};
+const broadcastGroupMessage = async (
+    adminId: string,
+    text: string,
+    type: "text" | "image" = "text"
+) => {
+    const groupId = await getOrCreateBroadcastGroup(adminId);
+    // Only admin can broadcast
+    const groupSnap = await getDatabase().ref(`groupChats/${groupId}`).once("value");
+    if (!groupSnap.exists() || groupSnap.val().admin !== adminId) {
+        return { success: false, message: "Only the admin can broadcast to this group." };
+    }
+    const sendResult = await sendGroupMessage(adminId, groupId, text, type);
+
+    // Notify all followers (except admin)
+    const db: Database = getDatabase();
+    const group = groupSnap.val();
+    const adminUser = await getUserData(adminId);
+    for (const uid of Object.keys(group.participants || {})) {
+        if (uid !== adminId) {
+            await addNotification(
+                uid,
+                "broadcast-message",
+                adminId,
+                `New message from ${group.groupName}`,
+                { groupId, messageId: sendResult.messageId, text, type },
+                { photoUrl: adminUser.photoUrl }
+            );
+        }
+    }
+    return sendResult;
+};
 export {
 	sendMessage,
 	getChatMessages,
 	getUserChats,
 	markChatAsRead,
 	getOrCreateChatId,
-	setInChatStatus
+	setInChatStatus,
+	broadcastGroupMessage,
+    sendGroupMessage,
+    getOrCreateBroadcastGroup
 };

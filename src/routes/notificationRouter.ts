@@ -1,5 +1,5 @@
 import express, { type Request, type Response } from "express";
-import { getNotifications, markNotificationRead } from "../actions/notifications";
+import { getNotifications, markNotificationRead, saveExpoToken } from "../actions/notifications";
 import { verifyFirebaseToken } from "../middlewares/verifyFirebaseToken";
 
 
@@ -23,6 +23,20 @@ notificationRouter.post(
         const { notificationId } = req.params;
         await markNotificationRead(userId, notificationId);
         res.json({ success: true });
+    }
+);
+
+notificationRouter.post(
+    "/expo-token/:token",
+    verifyFirebaseToken,
+    async (req: Request, res: Response) => {
+        const userId = req.user.uid;
+        const { token } = req.params;
+        if (!token) {
+            return res.status(400).json({ success: false, message: "Expo token is required" });
+        }
+        const result = await saveExpoToken(userId, token);
+        res.json(result);
     }
 );
 
