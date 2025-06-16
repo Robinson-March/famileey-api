@@ -151,14 +151,19 @@ const getUserChats = async (userId: string) => {
                     }),
                 );
 
+                // Determine read status for DM
+                const lastTimestamp = chat.lastMessage?.timestamp || 0;
+                const userReadTimestamp = chat.readStatus?.[userId] || 0;
+                const readStatus = userReadTimestamp >= lastTimestamp;
+
                 return {
                     chatId,
                     withUser: otherUserId,
                     participants,
                     lastMessage: chat.lastMessage || null,
-                    readStatus: chat.readStatus?.[userId] || null,
+                    readStatus, // true if user has read latest message
                     isGroup: false,
-                    lastTimestamp: chat.lastMessage?.timestamp || 0,
+                    lastTimestamp,
                 };
             },
         );
@@ -189,15 +194,21 @@ const getUserChats = async (userId: string) => {
                         }
                     }),
                 );
+                // Determine read status for group
+                const lastTimestamp = group.lastMessage?.timestamp || 0;
+                const userReadTimestamp = group.lastMessage?.readStatus?.[userId] || 0;
+                const readStatus = userReadTimestamp >= lastTimestamp;
+
                 return {
                     groupId,
                     groupName: group.groupName,
                     participants,
                     lastMessage: group.lastMessage || null,
+                    readStatus, // true if user has read latest message
                     isGroup: true,
                     isBroadcastGroup: !!group.isBroadcastGroup,
                     admin: group.admin,
-                    lastTimestamp: group.lastMessage?.timestamp || 0,
+                    lastTimestamp,
                 };
             }
         );
@@ -382,6 +393,44 @@ const broadcastGroupMessage = async (
     }
     return sendResult;
 };
+const readGroupMessage = async (
+    groupId: string,
+    messageId: string,
+    userId: string
+) => {
+    const db: Database = getDatabase();
+
+    // Fetch the message to check the sender
+    const messageSnap = await db
+        .ref(`groupChats/${groupId}/messages/${messageId}`)
+        .once("value");
+    if (!messageSnap.exists()) {
+        return { success: false, message: "Message not found" };
+    }
+    const message = messageSnap.val();
+
+    // Do not mark as read if user is the sender
+    if (message.senderId === userId) {
+        return {
+            success: false,
+            message: "Sender should not mark their own message as read",
+        };
+    }
+
+    const timestamp = Date.now();
+
+    // Update the readStatus for the specific message
+    await db
+        .ref(`groupChats/${groupId}/messages/${messageId}/readStatus/${userId}`)
+        .set(timestamp);
+
+    // Optionally, update the readStatus for the group's lastMessage
+    await db
+        .ref(`groupChats/${groupId}/lastMessage/readStatus/${userId}`)
+        .set(timestamp);
+
+    return { success: true, message: "Group message marked as read" };
+};
 export {
 	sendMessage,
 	getChatMessages,
@@ -391,5 +440,6 @@ export {
 	setInChatStatus,
 	broadcastGroupMessage,
     sendGroupMessage,
-    getOrCreateBroadcastGroup
+    getOrCreateBroadcastGroup,
+    readGroupMessage
 };

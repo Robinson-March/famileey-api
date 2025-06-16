@@ -16,6 +16,7 @@ import {
 	broadcastGroupMessage,
 	getOrCreateBroadcastGroup,
 	sendGroupMessage,
+	readGroupMessage,
 } from "../actions/messaging";
 
 const messagingRouter = express.Router();
@@ -144,6 +145,22 @@ messagingRouter.post(
         res.json(result);
     }
 );
-
+messagingRouter.patch(
+    "/group/read/:groupId/:messageId",
+    async (req: Request, res: Response) => {
+        try {
+            const userId = req.user?.uid;
+            const { groupId, messageId } = req.params;
+            if (!userId || !groupId || !messageId) {
+                return res.status(400).json({ success: false, message: "Missing userId, groupId, or messageId" });
+            }
+            const result = await readGroupMessage(groupId, messageId, userId);
+            res.json(result);
+        } catch (e: any) {
+            logger.error(`Read group message error: ${e.message}`);
+            res.status(500).json({ success: false, message: "Internal error" });
+        }
+    }
+);
 
 export default messagingRouter;
