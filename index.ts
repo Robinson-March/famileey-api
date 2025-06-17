@@ -34,6 +34,7 @@ app.use(helmet()); // Security headers
 // app.use(cors({ origin: "*" })); // Enable CORS
 app.use(express.json()); // JSON body parser
 app.use(express.urlencoded({ extended: true })); // Form URL-encoded body parser
+app.use(express.static('public')); // Serve static files from the 'public' directory
 const allowedOrigins = ["http://localhost:4011", process.env.ALLOWED];
 app.use(
 	cors({
@@ -72,44 +73,39 @@ router.get("/profile/:userId", async (req, res) => {
     const user = await getUserData(userId);
     if (!user) return res.status(404).send("User not found");
 
-    // If the request is from a browser/crawler, serve HTML with Open Graph tags
-    const accept = req.headers.accept || "";
-    if (accept.includes("text/html")) {
-        return res.send(`
-            <!DOCTYPE html>
-            <html lang="en">
-            <head>
-                <meta charset="utf-8">
-                <title>Famileey | ${user.familyName}'s Profile</title>
-                <meta property="og:title" content="Famileey | ${user.familyName}'s Profile" />
-                <meta property="og:description" content="${user.bio || "View my Famileey profile!"}" />
-                <meta property="og:image" content="${user.photoUrl || "https://yourdomain.com/default-profile.png"}" />
-                <meta property="og:type" content="profile" />
-                <meta property="og:url" content="https://yourdomain.com/profile/${userId}" />
-                <meta name="twitter:card" content="summary_large_image" />
-                <meta name="twitter:title" content="Famileey | ${user.familyName}'s Profile" />
-                <meta name="twitter:description" content="${user.bio || "View my Famileey profile!"}" />
-                <meta name="twitter:image" content="${user.photoUrl || "https://yourdomain.com/default-profile.png"}" />
-            </head>
-            <body>
-                <h1>${user.familyName}'s Famileey Profile</h1>
-                <img src="${user.photoUrl || "https://yourdomain.com/default-profile.png"}" alt="Profile Photo" style="max-width:200px;">
-                <p>${user.bio || ""}</p>
-                <p><a href="https://yourdomain.com/download">Open in App</a></p>
-            </body>
-            </html>
-        `);
-    }
-
-    // Otherwise, serve JSON (for API use)
-    // res.json({
-    //     uid: user.uid,
-    //     familyName: user.familyName,
-    //     photoUrl: user.photoUrl,
-    //     bio: user.bio,
-    // });
+    // Always serve HTML with Open Graph tags for social preloading
+    res.setHeader("Content-Type", "text/html");
+    return res.send(`
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="utf-8">
+            <title>Famileey | ${user.familyName}'s Profile</title>
+            <meta property="og:title" content="Famileey | ${user.familyName}'s Profile" />
+            <meta property="og:description" content="${user.bio || "View my Famileey profile!"}" />
+            <meta property="og:image" content="${user.photoUrl || "https://famileey.com/logo.jpg"}" />
+            <meta property="og:type" content="profile" />
+            <meta property="og:url" content="https://famileey.com/profile/${userId}" />
+            <meta name="twitter:card" content="summary_large_image" />
+            <meta name="twitter:title" content="Famileey | ${user.familyName}'s Profile" />
+            <meta name="twitter:description" content="${user.bio || "View my Famileey profile!"}" />
+            <meta name="twitter:image" content="${user.photoUrl || "https://famileey.com/logo.jpg"}" />
+        
+        </head>
+        <body>
+            <h1>${user.familyName}'s Famileey Profile</h1>
+            <img src="${user.photoUrl || "https://famileey.com/logo.jpg"}" alt="Profile Photo" style="max-width:200px;">
+            <p>${user.bio || ""}</p>
+         
+        </body>
+        </html>
+    `);
 });
-app.use("/", router);
+
+// Mount the router to make /profile/:userId and other routes on it accessible
+app.use(router);
+
+// Mount other specific routers
 app.use("/api/accounts", accountRouter);
 app.use("/api/posts", verifyFirebaseToken, postsRouter);
 app.use("/api/families", verifyFirebaseToken, familyRouter);

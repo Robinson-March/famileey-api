@@ -11,7 +11,7 @@ import {
 	retrieveBvn,
 } from "../services/accounts";
 import bodyInspector from "../middlewares/bodyInspector";
-import { getUser, protectRoute } from "@kinde-oss/kinde-node-express";
+
 import type {
 	GetUserMiddleware,
 	FamilleyData,

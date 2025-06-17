@@ -15,7 +15,6 @@
     "typescript": "^5.0.0"
   },
   "dependencies": {
-    "@kinde-oss/kinde-node-express": "^1.6.0",
     "@types/morgan": "^1.9.9",
     "cors": "^2.8.5",
     "expo-server-sdk": "^3.15.0",
