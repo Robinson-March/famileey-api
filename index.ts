@@ -20,6 +20,7 @@ import { familyRouter } from "./src/routes/familyRouter";
 import messagingRouter from "./src/routes/messagingRouter";
 import notificationRouter from "./src/routes/notificationRouter";
 import { getUserData } from "./src/actions/accounts";
+import adminRouter from "./src/routes/adminRouter";
 
 const app = express();
 const PORT = process.env.PORT || 4011;
@@ -102,6 +103,34 @@ router.get("/profile/:userId", async (req, res) => {
     `);
 });
 
+// /invite Open Graph route
+router.get("/invite", (req, res) => {
+    res.setHeader("Content-Type", "text/html");
+    return res.send(`
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="utf-8">
+            <title>Join Famileey - The Family Connection App</title>
+            <meta property="og:title" content="Join Famileey - The Family Connection App" />
+            <meta property="og:description" content="Connect, share, and grow with your family on Famileey. Download now!" />
+            <meta property="og:image" content="https://famileey.com/logo.jpg" />
+            <meta property="og:type" content="website" />
+            <meta property="og:url" content="https://famileey.com/invite" />
+            <meta name="twitter:card" content="summary_large_image" />
+            <meta name="twitter:title" content="Join Famileey - The Family Connection App" />
+            <meta name="twitter:description" content="Connect, share, and grow with your family on Famileey. Download now!" />
+            <meta name="twitter:image" content="https://famileey.com/logo.jpg" />
+        </head>
+        <body>
+            <h1>Welcome to Famileey!</h1>
+            <img src="https://famileey.com/logo.jpg" alt="Famileey Logo" style="max-width:200px;">
+            <p>Connect, share, and grow with your family. <a href="https://famileey.com/download">Download the app</a> now!</p>
+        </body>
+        </html>
+    `);
+});
+
 // Mount the router to make /profile/:userId and other routes on it accessible
 app.use(router);
 
@@ -111,6 +140,7 @@ app.use("/api/posts", verifyFirebaseToken, postsRouter);
 app.use("/api/families", verifyFirebaseToken, familyRouter);
 app.use("/api/messaging", verifyFirebaseToken, messagingRouter);
 app.use("/api/notifications", verifyFirebaseToken, notificationRouter);
+app.use("/api/admin",verifyFirebaseToken, adminRouter); // Mounting adminRouter
 
 // ❌ 404 Not Found Middleware (Handles Unmatched Routes)
 app.use((req: Request, res: Response, next: NextFunction) => {

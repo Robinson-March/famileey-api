@@ -136,4 +136,37 @@ const saveExpoToken = async (userId: string, expoToken: string) => {
         return { success: false, message: "Failed to save expo token" };
     }
 };
-export { addNotification, getNotifications, markNotificationRead,removeFollowRequestNotification,saveExpoToken };
+// Save a reply to a notification and notify the author
+const replyToNotification = async (userId: string, notificationId: string, reply: string) => {
+    const db = getDatabase();
+    const replyId = uuidv4();
+    const timestamp = Date.now();
+    const replyObj = {
+        replyId,
+        userId,
+        reply,
+        timestamp,
+    };
+    // Save reply under the notification
+    await db.ref(`notifications/${userId}/${notificationId}/replies/${replyId}`).set(replyObj);
+
+    // Fetch the notification to get the author
+    const notifSnap = await db.ref(`notifications/${userId}/${notificationId}`).once("value");
+    if (notifSnap.exists()) {
+        const notif = notifSnap.val();
+        const authorUid = notif.from?.uid;
+        if (authorUid && authorUid !== userId) {
+            // Notify the author that a reply was sent
+            await addNotification(
+                authorUid,
+                "notification-reply",
+                userId,
+                `Your notification received a reply: ${reply}`,
+                { notificationId, replyId }
+            );
+        }
+    }
+    return { success: true, replyId };
+};
+
+export { addNotification, getNotifications, markNotificationRead, removeFollowRequestNotification, saveExpoToken, replyToNotification };

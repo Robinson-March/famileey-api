@@ -61,3 +61,16 @@ export interface DummyAccount {
   currency: string;
   country: string;
 }
+
+declare global {
+  namespace Express {
+    interface User {
+      uid: string;
+      role?: string;
+      // Add other user properties as needed
+    }
+    interface Request {
+      user?: User;
+    }
+  }
+}
