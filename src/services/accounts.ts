@@ -39,7 +39,7 @@ const handleResponse = async (response: Response, endpoint: string) => {
 
   if (contentType?.includes("application/json")) {
     const jsonResponse = await response.json();
-    console.log(JSON.stringify(jsonResponse, null, 2));
+  
     // ✅ Check if API response contains an error message
     if (
       jsonResponse.status === "error" ||

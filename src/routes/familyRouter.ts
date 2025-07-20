@@ -71,7 +71,7 @@ familyRouter.search(
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
 			const { search } = req.query;
-			console.log({ search });
+	
 			const result = await searchFamilies(search);
 			if (!result?.success) {
 				res.status(400).json({

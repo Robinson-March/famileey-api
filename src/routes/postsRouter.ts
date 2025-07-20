@@ -244,7 +244,7 @@ postsRouter.delete(
 postsRouter.post("/webhook", (req: Request, res: Response) => {
   try {
     const event = req.body;
-    console.log("Received webhook:", event);
+   
     res.status(200).json({ message: "Webhook received successfully" });
   } catch (error) {
     console.error("Error handling webhook:", error);

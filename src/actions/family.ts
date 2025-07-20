@@ -36,7 +36,7 @@ const getFamilies = async (userId: string) => {
 		const likesData = likesSnap.exists() ? likesSnap.val() : {};
 		const commentsData = commentsSnap.exists() ? commentsSnap.val() : {};
 		const followingData = followingSnap.exists() ? followingSnap.val() : {};
-		console.log(JSON.stringify(followingData, null, 2));
+	
 		interface Stats {
 			id: string;
 			user: any;
@@ -78,10 +78,7 @@ const getFamilies = async (userId: string) => {
 		const families = Object.values(statsMap)
 			.filter((s) => s.id !== userId)
 			.map((s) => {
-				console.log(
-					`Checking if user ${userId} is following ${s.id}:`,
-					!!followingData[s.id],
-				);
+			
 				return {
 					id: s.id,
 					...s.user,
